@@ -24,6 +24,20 @@
 .sheet{max-height:92dvh;overflow-y:auto;padding-bottom:max(28px,env(safe-area-inset-bottom))}
 .field input,.field textarea,.login input{min-height:48px}
 @media(max-width:390px){.cal{padding:9px}.grid{gap:2px}.day{padding:2px}.day-event{font-size:12px}.more-event{font-size:11px}}
+/* 行李箱密碼轉盤：三個獨立直向滾輪 */
+.luggage-time{background:linear-gradient(145deg,#e6e3dc,#f3efe9);border:1px solid var(--line);border-radius:18px;padding:12px 10px 10px;box-shadow:inset 0 2px 6px #4d46331a}
+.wheel-caption{font-size:15px;color:var(--muted);text-align:center;margin-bottom:7px}
+.wheel-row{display:flex;align-items:center;justify-content:center;gap:7px}
+.wheel-unit{flex:1;min-width:0}.wheel-label{text-align:center;font-size:15px;color:#6e766f;margin-bottom:6px}
+.wheel{height:156px;overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain;border:2px solid #b9b6ae;border-radius:13px;background:linear-gradient(to bottom,#e6e4de 0%,#fafaf7 34%,#fff 45%,#fff 55%,#fafaf7 66%,#e6e4de 100%);box-shadow:inset 0 5px 9px #0002,0 3px 4px #fff8;scrollbar-width:none;position:relative;touch-action:pan-y}
+.wheel::-webkit-scrollbar{display:none}
+.wheel::after{content:"";position:sticky;display:block;bottom:52px;height:52px;margin-top:-52px;border-top:2px solid #87988a66;border-bottom:2px solid #87988a66;pointer-events:none}
+.wheel-option{height:52px;display:flex;align-items:center;justify-content:center;scroll-snap-align:center;font-size:26px;font-weight:750;color:#8c8d87;user-select:none;cursor:pointer;transition:color .12s}
+.wheel-option.active{color:#394e43;font-size:30px;text-shadow:0 1px 0 #fff}
+.wheel-spacer{height:52px;pointer-events:none}
+.wheel-colon{font-size:31px;font-weight:800;color:var(--sage);padding-top:20px}
+.wheel-preview{text-align:center;color:#617568;font-size:18px;font-weight:700;margin-top:9px}
+@media(max-width:380px){.wheel-row{gap:4px}.wheel-option{font-size:23px}.wheel-option.active{font-size:27px}.luggage-time{padding:9px 6px}}
 </style>
 </head><body>
 <section id="login"><div class="login"><div class="logo">🌿</div><h1>日常樹</h1><p>多人共用行程・大家都能新增與刪除</p><input id="name" placeholder="你的名稱（例如：David）" maxlength="20"><div class="color-pick"><span>我的代表色</span><input id="userColor" type="color" value="#87988a"><small>行程使用此顏色</small></div><input id="pass" type="password" inputmode="numeric" maxlength="4" placeholder="登入密碼"><button id="loginBtn" class="primary">進入共用行事曆</button><div id="err" class="err"></div></div></section>
@@ -34,7 +48,16 @@
 <div id="todos" class="panel"><div class="addrow"><input id="todoText" placeholder="新增共用待辦…"><button id="addTodo" class="small">＋</button></div><div id="todoList"></div></div>
 <div id="notes" class="panel"><div class="addrow"><input id="noteText" placeholder="新增一則共用備註…"><button id="addNote" class="small">＋</button></div><div id="noteList"></div></div></section><button id="fab" class="fab">＋</button></main>
 <div id="status" class="status"></div>
-<div id="modal" class="modal hidden"><div class="sheet"><h3>新增共用行程</h3><div class="field"><label>日期</label><input id="evDate" type="date"></div><div class="field"><label>時間</label><input id="evTime" type="time"></div><div class="field"><label>行程</label><input id="evTitle" placeholder="輸入行程名稱"></div><div class="field"><label>備註</label><textarea id="evNote" placeholder="地點、提醒事項…"></textarea></div><div id="saveError" role="alert" style="display:none;color:#a05b58;background:#f8e7e5;padding:10px;border-radius:10px;font-size:18px;margin-top:10px"></div><div class="actions"><button id="cancel" class="cancel">取消</button><button id="saveEv" class="primary">儲存</button></div></div></div>
+<div id="modal" class="modal hidden"><div class="sheet"><h3>新增共用行程</h3><div class="field"><label>日期</label><input id="evDate" type="date"></div><div class="field"><label>時間</label><div class="luggage-time" aria-label="行李箱密碼轉盤式時間選擇器">
+<div class="wheel-caption">上下滑動數字，或點選上下箭頭調整時間</div>
+<div class="wheel-row">
+ <div class="wheel-unit"><div class="wheel-label">上午／下午</div><div class="wheel" id="wheelPeriod" data-wheel="period"></div></div>
+ <div class="wheel-unit"><div class="wheel-label">小時</div><div class="wheel" id="wheelHour" data-wheel="hour"></div></div>
+ <span class="wheel-colon">:</span>
+ <div class="wheel-unit"><div class="wheel-label">分鐘</div><div class="wheel" id="wheelMinute" data-wheel="minute"></div></div>
+</div>
+<input id="evTime" type="hidden"><div class="wheel-preview" id="wheelPreview"></div>
+</div></div><div class="field"><label>行程</label><input id="evTitle" placeholder="輸入行程名稱"></div><div class="field"><label>備註</label><textarea id="evNote" placeholder="地點、提醒事項…"></textarea></div><div id="saveError" role="alert" style="display:none;color:#a05b58;background:#f8e7e5;padding:10px;border-radius:10px;font-size:18px;margin-top:10px"></div><div class="actions"><button id="cancel" class="cancel">取消</button><button id="saveEv" class="primary">儲存</button></div></div></div>
 <script>
 /*
 多人同步設定：
@@ -145,7 +168,35 @@ async function add(type,obj){
 }
 $('#addTodo').onclick=async()=>{let t=$('#todoText').value.trim();if(t){try{await add('todo',{text:t});$('#todoText').value=''}catch(e){alert('待辦儲存失敗：'+e.message)}}};
 $('#addNote').onclick=async()=>{let t=$('#noteText').value.trim();if(t){try{await add('note',{text:t});$('#noteText').value=''}catch(e){alert('備註儲存失敗：'+e.message)}}};
-$('#fab').onclick=()=>{$('#saveError').style.display='none';$('#evDate').value=selected;$('#evTitle').value='';$('#evTime').value='';$('#evNote').value='';$('#modal').classList.remove('hidden')};
+// 行李箱式時間轉盤，儲存仍使用標準 HH:mm（24 小時制）
+const wheelValues={period:['上午','下午'],hour:Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')),minute:Array.from({length:60},(_,i)=>String(i).padStart(2,'0'))};
+const wheelState={period:0,hour:8,minute:0};
+const wheelTimers={};
+function updateWheelTime(){
+ const hour12=wheelState.hour+1;
+ const hour24=(hour12%12)+(wheelState.period===1?12:0);
+ $('#evTime').value=String(hour24).padStart(2,'0')+':'+String(wheelState.minute).padStart(2,'0');
+ $('#wheelPreview').textContent=wheelValues.period[wheelState.period]+' '+String(hour12).padStart(2,'0')+':'+wheelValues.minute[wheelState.minute];
+ Object.keys(wheelValues).forEach(k=>document.querySelectorAll('#wheel'+k[0].toUpperCase()+k.slice(1)+' .wheel-option').forEach((el,i)=>el.classList.toggle('active',i===wheelState[k])));
+}
+function setWheel(k,index,animate=true){
+ index=Math.max(0,Math.min(wheelValues[k].length-1,index));wheelState[k]=index;
+ const el=$('#wheel'+k[0].toUpperCase()+k.slice(1));
+ el.scrollTo({top:index*52,behavior:animate?'smooth':'instant'});
+ updateWheelTime();
+}
+function initTimeWheels(){
+ for(const k of Object.keys(wheelValues)){
+  const el=$('#wheel'+k[0].toUpperCase()+k.slice(1));
+  el.innerHTML='<div class="wheel-spacer"></div>'+wheelValues[k].map((v,i)=>'<div class="wheel-option" data-index="'+i+'">'+v+'</div>').join('')+'<div class="wheel-spacer"></div>';
+  el.addEventListener('click',e=>{const item=e.target.closest('.wheel-option');if(item)setWheel(k,Number(item.dataset.index))});
+  el.addEventListener('scroll',()=>{clearTimeout(wheelTimers[k]);wheelTimers[k]=setTimeout(()=>{const index=Math.round(el.scrollTop/52);setWheel(k,index,false)},95)},{passive:true});
+ }
+ const n=new Date();wheelState.period=n.getHours()>=12?1:0;wheelState.hour=(n.getHours()%12||12)-1;wheelState.minute=n.getMinutes();
+ Object.keys(wheelValues).forEach(k=>setWheel(k,wheelState[k],false));
+}
+initTimeWheels();
+$('#fab').onclick=()=>{$('#saveError').style.display='none';$('#evDate').value=selected;$('#evTitle').value='';$('#evNote').value='';const t=new Date();wheelState.period=t.getHours()>=12?1:0;wheelState.hour=(t.getHours()%12||12)-1;wheelState.minute=t.getMinutes();Object.keys(wheelValues).forEach(k=>setWheel(k,wheelState[k],false));$('#modal').classList.remove('hidden')};
 $('#cancel').onclick=()=>$('#modal').classList.add('hidden');
 $('#saveEv').onclick=async()=>{
  const date=$('#evDate').value,title=$('#evTitle').value.trim(),btn=$('#saveEv'),err=$('#saveError');
