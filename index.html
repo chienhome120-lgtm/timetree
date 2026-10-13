@@ -78,6 +78,28 @@ const PASSWORD='4530';
 let username='', userColor='#87988a', items=[], now=new Date(), view=new Date(now.getFullYear(),now.getMonth(),1), selected=fmt(now);
 const $=s=>document.querySelector(s);
 function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+// 統一雲端日期格式；禁止將空值、時間或 1899/1900 試算表基準日誤當成行程日期。
+function normalizeDate(value){
+ if(value==null||value==='')return '';
+ if(typeof value==='number'){
+  if(value<20000||value>100000)return '';
+  const d=new Date(Date.UTC(1899,11,30)+Math.round(value)*86400000);
+  return d.getUTCFullYear()>=2000?d.toISOString().slice(0,10):'';
+ }
+ const raw=String(value).trim();
+ let m=raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[T\s].*)?$/);
+ if(m){const y=+m[1],mo=+m[2],day=+m[3],d=new Date(y,mo-1,day);return y>=2000&&y<=2100&&d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?fmt(d):'';}
+ if(/^\d{4}-\d{2}-\d{2}T/.test(raw)){const d=new Date(raw);return !isNaN(d)&&d.getFullYear()>=2000?fmt(d):'';}
+ return '';
+}
+function normalizeTime(value){
+ const m=String(value??'').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+ if(m&&+m[1]<24&&+m[2]<60)return m[1].padStart(2,'0')+':'+m[2];
+ // 試算表有時會把時間轉成一天的小數。
+ if(typeof value==='number'&&value>=0&&value<1){const minutes=Math.round(value*1440)%1440;return String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0')}
+ return '';
+}
+function normalizeItem(x){return {...x,date:normalizeDate(x.date),time:normalizeTime(x.time)}}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function safeColor(c){return /^#[0-9a-fA-F]{6}$/.test(String(c||''))?c:'#87988a'}
 function toast(t){let x=$('#status');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1500)}
@@ -110,7 +132,7 @@ function api(payload,method='POST'){
  });
 }
 async function sync(){
- try{toast('同步中…');let j=await api(null,'GET');items=j.items||[];render();toast('已同步')}
+ try{toast('同步中…');let j=await api(null,'GET');items=(Array.isArray(j.items)?j.items:[]).map(normalizeItem);render();const bad=items.filter(x=>!x.date).length;toast(bad?`已同步，${bad} 筆雲端資料日期異常`:'已同步')}
  catch(e){render();toast(e.message)}
 }
 // 在此裝置記憶登入資料；共用裝置請勿啟用自動登入
@@ -177,6 +199,7 @@ $('#addNote').onclick=async()=>{let t=$('#noteText').value.trim();if(t){try{awai
 const wheelValues={period:['上午','下午'],hour:Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')),minute:Array.from({length:60},(_,i)=>String(i).padStart(2,'0'))};
 const wheelState={period:0,hour:8,minute:0};
 const wheelTimers={};
+let wheelAdjusting=false;
 function updateWheelTime(){
  const hour12=wheelState.hour+1;
  const hour24=(hour12%12)+(wheelState.period===1?12:0);
@@ -187,7 +210,7 @@ function updateWheelTime(){
 function setWheel(k,index,animate=true){
  index=Math.max(0,Math.min(wheelValues[k].length-1,index));wheelState[k]=index;
  const el=$('#wheel'+k[0].toUpperCase()+k.slice(1));
- el.scrollTo({top:index*52,behavior:animate?'smooth':'instant'});
+ if(!animate){wheelAdjusting=true;el.scrollTop=index*52;requestAnimationFrame(()=>{wheelAdjusting=false})}else el.scrollTo({top:index*52,behavior:'smooth'});
  updateWheelTime();
 }
 function initTimeWheels(){
@@ -195,17 +218,27 @@ function initTimeWheels(){
   const el=$('#wheel'+k[0].toUpperCase()+k.slice(1));
   el.innerHTML='<div class="wheel-spacer"></div>'+wheelValues[k].map((v,i)=>'<div class="wheel-option" data-index="'+i+'">'+v+'</div>').join('')+'<div class="wheel-spacer"></div>';
   el.addEventListener('click',e=>{const item=e.target.closest('.wheel-option');if(item)setWheel(k,Number(item.dataset.index))});
-  el.addEventListener('scroll',()=>{clearTimeout(wheelTimers[k]);wheelTimers[k]=setTimeout(()=>{const index=Math.round(el.scrollTop/52);setWheel(k,index,false)},95)},{passive:true});
+  el.addEventListener('scroll',()=>{if(wheelAdjusting)return;clearTimeout(wheelTimers[k]);wheelTimers[k]=setTimeout(()=>{if(wheelAdjusting)return;const index=Math.round(el.scrollTop/52);setWheel(k,index,false)},120)},{passive:true});
  }
  const n=new Date();wheelState.period=n.getHours()>=12?1:0;wheelState.hour=(n.getHours()%12||12)-1;wheelState.minute=n.getMinutes();
  Object.keys(wheelValues).forEach(k=>setWheel(k,wheelState[k],false));
 }
 initTimeWheels();
-$('#fab').onclick=()=>{$('#saveError').style.display='none';$('#evDate').value=selected;$('#evTitle').value='';$('#evNote').value='';const t=new Date();wheelState.period=t.getHours()>=12?1:0;wheelState.hour=(t.getHours()%12||12)-1;wheelState.minute=t.getMinutes();Object.keys(wheelValues).forEach(k=>setWheel(k,wheelState[k],false));$('#modal').classList.remove('hidden')};
+$('#fab').onclick=()=>{
+ $('#saveError').style.display='none';$('#evDate').value=selected;
+ $('#evTitle').value='';$('#evNote').value='';
+ $('#modal').classList.remove('hidden');
+ // 每次開啟都重新取手機當下時間；先顯示彈窗再定位，避免隱藏滾輪捲動位置失準。
+ const t=new Date();wheelState.period=t.getHours()>=12?1:0;
+ wheelState.hour=(t.getHours()%12||12)-1;wheelState.minute=t.getMinutes();
+ Object.values(wheelTimers).forEach(clearTimeout);
+ Object.keys(wheelValues).forEach(k=>setWheel(k,wheelState[k],false));
+ requestAnimationFrame(()=>Object.keys(wheelValues).forEach(k=>setWheel(k,wheelState[k],false)));
+};
 $('#cancel').onclick=()=>$('#modal').classList.add('hidden');
 $('#saveEv').onclick=async()=>{
- const date=$('#evDate').value,title=$('#evTitle').value.trim(),btn=$('#saveEv'),err=$('#saveError');
- if(!date||!title){err.textContent='請填寫日期及行程名稱';err.style.display='block';return}
+ const date=normalizeDate($('#evDate').value),title=$('#evTitle').value.trim(),btn=$('#saveEv'),err=$('#saveError');
+ if(!date||!title){err.textContent='請填寫有效日期（2000～2100 年）及行程名稱';err.style.display='block';return}
  btn.disabled=true;btn.textContent='儲存中…';err.style.display='none';
  try{
   await api({action:'add',type:'event',date,user:username,color:userColor,title,time:$('#evTime').value,note:$('#evNote').value.trim()});
@@ -216,9 +249,9 @@ $('#saveEv').onclick=async()=>{
   err.style.display='block';
  }finally{btn.disabled=false;btn.textContent='儲存'}
 };
-$('#prev').onclick=()=>{view.setMonth(view.getMonth()-1);render()};$('#next').onclick=()=>{view.setMonth(view.getMonth()+1);render()};$('#today').onclick=()=>{selected=fmt(now);view=new Date(now.getFullYear(),now.getMonth(),1);render()};
+$('#prev').onclick=()=>{view.setMonth(view.getMonth()-1);render()};$('#next').onclick=()=>{view.setMonth(view.getMonth()+1);render()};$('#today').onclick=()=>{now=new Date();selected=fmt(now);view=new Date(now.getFullYear(),now.getMonth(),1);render()};
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#'+b.dataset.p).classList.add('on')});
-setInterval(()=>{if(username&&configured())sync()},30000);
+setInterval(()=>{now=new Date();if(username&&configured())sync()},30000);
 render();
 // 已登入過的個人裝置，重開時自動進入；清除網站資料即可重新輸入。
 
