@@ -43,16 +43,20 @@
 #login{box-sizing:border-box;width:100%;max-width:100vw;margin:0;justify-items:center;align-items:center;padding-left:16px;padding-right:16px}
 #login .login{box-sizing:border-box;width:100%;max-width:430px;margin-left:auto;margin-right:auto;justify-self:center;transform:none}
 @media(max-width:480px){#login{padding-left:16px;padding-right:16px}#login .login{max-width:100%}}
+/* 新增資訊即時提示（頁面開啟期間） */
+.notice-box{position:fixed;z-index:110;top:max(14px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(calc(100vw - 24px),510px);background:#faf7f2;border:2px solid #87988a;border-radius:18px;padding:13px 14px;box-shadow:0 12px 35px #343a3480;display:flex;gap:10px;align-items:flex-start}
+.notice-body{flex:1;min-width:0}.notice-body strong{display:block;font-size:19px;color:#394e43}.notice-body p{margin:5px 0 0;font-size:17px;overflow-wrap:anywhere}.notice-close{border:0;background:#e8e2db;border-radius:10px;padding:3px 10px;font-size:23px;color:#50534e}
+.notify-toggle{border:0;background:#e8e4de;border-radius:12px;padding:8px 10px;color:#50534e;font-size:15px}
 </style>
 </head><body>
 <section id="login"><div class="login"><div class="logo">🌿</div><h1>日常樹</h1><p>多人共用行程・大家都能新增與刪除</p><input id="name" placeholder="你的名稱（例如：David）" maxlength="20"><div class="color-pick"><span>我的代表色</span><input id="userColor" type="color" value="#87988a"><small>行程使用此顏色</small></div><input id="pass" type="password" inputmode="numeric" maxlength="4" placeholder="登入密碼"><button id="loginBtn" class="primary">進入共用行事曆</button><div id="err" class="err"></div></div></section>
-<main id="app" class="hidden"><header class="top"><div><div class="brand">日常樹</div><div id="who" class="user"></div></div><button id="today" class="today">今天</button></header>
+<main id="app" class="hidden"><header class="top"><div><div class="brand">日常樹</div><div id="who" class="user"></div></div><div style="display:flex;gap:5px;align-items:center"><button id="notifyToggle" class="notify-toggle" title="啟用手機系統通知">🔔通知</button><button id="today" class="today">今天</button></div></header>
 <section class="cal"><div class="head"><h2 id="month"></h2><div class="nav"><button id="prev">‹</button><button id="next">›</button></div></div><div class="week"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div><div id="grid" class="grid"></div></section>
-<section class="lower"><div class="lowerhead"><h3>共用記事</h3><span id="date" class="date"></span></div><div class="tabs"><button class="tab on" data-p="events">行程</button><button class="tab" data-p="todos">待辦</button><button class="tab" data-p="notes">備註</button></div>
+<section class="lower"><div class="lowerhead"><h3>共用記事</h3><span id="date" class="date"></span></div><div class="tabs"><button class="tab on" data-p="events">行程</button><button class="tab" data-p="todos">待辦</button><button class="tab" data-p="notes">留言</button></div>
 <div id="events" class="panel on"></div>
 <div id="todos" class="panel"><div class="addrow"><input id="todoText" placeholder="新增共用待辦…"><button id="addTodo" class="small">＋</button></div><div id="todoList"></div></div>
-<div id="notes" class="panel"><div class="addrow"><input id="noteText" placeholder="新增一則共用備註…"><button id="addNote" class="small">＋</button></div><div id="noteList"></div></div></section><button id="fab" class="fab">＋</button></main>
-<div id="status" class="status"></div>
+<div id="notes" class="panel"><div class="addrow"><input id="noteText" placeholder="新增一則共用留言（所有日期皆可看到）…"><button id="addNote" class="small">＋</button></div><div class="meta" style="margin:0 0 8px">所有留言不受日期限制，直到刪除為止。</div><div id="noteList"></div></div></section><button id="fab" class="fab">＋</button></main>
+<div id="status" class="status"></div><div id="noticeBox" class="notice-box hidden" role="alert" aria-live="assertive"><div class="notice-body"><strong id="noticeTitle"></strong><p id="noticeText"></p></div><button id="noticeClose" class="notice-close" aria-label="關閉通知">×</button></div>
 <div id="modal" class="modal hidden"><div class="sheet"><h3>新增共用行程</h3><div class="field"><label>日期</label><input id="evDate" type="date"></div><div class="field"><label>時間</label><div class="luggage-time" aria-label="行李箱密碼轉盤式時間選擇器">
 <div class="wheel-caption">上下滑動數字，或點選上下箭頭調整時間</div>
 <div class="wheel-row">
@@ -62,7 +66,7 @@
  <div class="wheel-unit"><div class="wheel-label">分鐘</div><div class="wheel" id="wheelMinute" data-wheel="minute"></div></div>
 </div>
 <input id="evTime" type="hidden"><div class="wheel-preview" id="wheelPreview"></div>
-</div></div><div class="field"><label>行程</label><input id="evTitle" placeholder="輸入行程名稱"></div><div class="field"><label>備註</label><textarea id="evNote" placeholder="地點、提醒事項…"></textarea></div><div id="saveError" role="alert" style="display:none;color:#a05b58;background:#f8e7e5;padding:10px;border-radius:10px;font-size:18px;margin-top:10px"></div><div class="actions"><button id="cancel" class="cancel">取消</button><button id="saveEv" class="primary">儲存</button></div></div></div>
+</div></div><div class="field"><label>行程</label><input id="evTitle" placeholder="輸入行程名稱"></div><div class="field"><label>留言</label><textarea id="evNote" placeholder="地點、提醒事項…"></textarea></div><div id="saveError" role="alert" style="display:none;color:#a05b58;background:#f8e7e5;padding:10px;border-radius:10px;font-size:18px;margin-top:10px"></div><div class="actions"><button id="cancel" class="cancel">取消</button><button id="saveEv" class="primary">儲存</button></div></div></div>
 <script>
 /*
 多人同步設定：
@@ -131,9 +135,44 @@ function api(payload,method='POST'){
   document.head.appendChild(script);
  });
 }
+// 首次載入只建立基準，不把既有歷史資料當作新通知。
+let syncReady=false, syncBusy=false, seenIds=new Set(), pendingLocal=0, noticeTimer;
+const itemKey=x=>String(x.id??'') || [x.type,x.date,x.time,x.title,x.text,x.user].join('|');
+function showNotice(title,detail){
+ $('#noticeTitle').textContent=title;$('#noticeText').textContent=detail;
+ $('#noticeBox').classList.remove('hidden');clearTimeout(noticeTimer);
+ noticeTimer=setTimeout(()=>$('#noticeBox').classList.add('hidden'),8500);
+ if('Notification' in window && Notification.permission==='granted' && document.visibilityState==='visible'){
+  try{new Notification(title,{body:detail,tag:'daily-tree-update'})}catch(e){}
+ }
+}
+$('#noticeClose').onclick=()=>{clearTimeout(noticeTimer);$('#noticeBox').classList.add('hidden')};
+$('#notifyToggle').onclick=async()=>{
+ if(!('Notification' in window)){toast('此瀏覽器不支援系統通知，仍可使用頁面提示');return}
+ if(!window.isSecureContext){toast('系統通知需要 HTTPS 網址');return}
+ if(Notification.permission==='denied'){toast('通知已被封鎖，請至瀏覽器網站設定開啟');return}
+ const permission=await Notification.requestPermission();
+ toast(permission==='granted'?'系統通知已啟用（網頁開啟時）':'仍會顯示頁面內通知');
+};
 async function sync(){
- try{toast('同步中…');let j=await api(null,'GET');items=(Array.isArray(j.items)?j.items:[]).map(normalizeItem);render();const bad=items.filter(x=>!x.date).length;toast(bad?`已同步，${bad} 筆雲端資料日期異常`:'已同步')}
- catch(e){render();toast(e.message)}
+ if(syncBusy)return;
+ syncBusy=true;
+ try{
+  const j=await api(null,'GET');
+  const latest=(Array.isArray(j.items)?j.items:[]).map(normalizeItem);
+  const newOnes=syncReady?latest.filter(x=>!seenIds.has(itemKey(x))):[];
+  items=latest;seenIds=new Set(latest.map(itemKey));syncReady=true;render();
+  const remote=newOnes.filter(x=>!(pendingLocal>0 && x.user===username));
+  if(remote.length){
+   const x=remote[remote.length-1];
+   const label=x.type==='event'?'新行程':x.type==='todo'?'新待辦':'新留言';
+   const content=x.title||x.text||'新增了一筆資訊';
+   showNotice('🌿 '+(x.user||'有人')+' 新增'+label,content+(remote.length>1?`（另有 ${remote.length-1} 筆新增）`:''));
+  }
+  const bad=items.filter(x=>x.type!=='note'&&!x.date).length;
+  if(bad)toast(`已同步，${bad} 筆雲端資料日期異常`);
+ }catch(e){toast(e.message)}
+ finally{syncBusy=false}
 }
 // 在此裝置記憶登入資料；共用裝置請勿啟用自動登入
 const savedUserName = localStorage.getItem('dailyTreeUserName') || '';
@@ -184,17 +223,18 @@ function renderDay(){
  let ev=items.filter(x=>x.date===selected&&x.type==='event').sort((a,b)=>(a.time||'').localeCompare(b.time||''));
  $('#events').innerHTML=ev.length?ev.map(card).join(''):'<div class="empty">這天還沒有共用行程</div>';
  let td=items.filter(x=>x.date===selected&&x.type==='todo');$('#todoList').innerHTML=td.length?td.map(card).join(''):'<div class="empty">這天還沒有共用待辦</div>';
- let nt=items.filter(x=>x.date===selected&&x.type==='note');$('#noteList').innerHTML=nt.length?nt.map(card).join(''):'<div class="empty">這天還沒有共用備註</div>';
+ let nt=items.filter(x=>x.type==='note');$('#noteList').innerHTML=nt.length?nt.slice().reverse().map(card).join(''):'<div class="empty">目前還沒有共用留言</div>';
 }
 function card(x){let title=x.type==='event'?`${esc(x.time||'全天')}　${esc(x.title)}`:esc(x.text);return `<div class="item" style="border-left-color:${safeColor(x.color)}"><div class="grow"><b>${title}</b>${x.note?`<div class="meta">${esc(x.note)}</div>`:''}<div class="meta">建立者：${esc(x.user||'未記錄')}</div></div><button class="del" onclick="removeItem('${String(x.id).replace(/'/g,"")}')">×</button></div>`}
 window.removeItem=async id=>{if(!confirm('確定刪除這筆共用資料？所有人都會同步刪除。'))return;try{await api({action:'delete',id,user:username});await sync()}catch(e){toast(e.message)}};
 async function add(type,obj){
  const result=await api({action:'add',type,date:selected,user:username,color:userColor,...obj});
- await sync();
+ pendingLocal++;try{await sync()}finally{pendingLocal--}
+ showNotice('🌿 已新增'+(type==='todo'?'待辦':'留言'),obj.text||'新增成功');
  return result;
 }
 $('#addTodo').onclick=async()=>{let t=$('#todoText').value.trim();if(t){try{await add('todo',{text:t});$('#todoText').value=''}catch(e){alert('待辦儲存失敗：'+e.message)}}};
-$('#addNote').onclick=async()=>{let t=$('#noteText').value.trim();if(t){try{await add('note',{text:t});$('#noteText').value=''}catch(e){alert('備註儲存失敗：'+e.message)}}};
+$('#addNote').onclick=async()=>{let t=$('#noteText').value.trim();if(t){try{await add('note',{text:t});$('#noteText').value=''}catch(e){alert('留言儲存失敗：'+e.message)}}};
 // 行李箱式時間轉盤，儲存仍使用標準 HH:mm（24 小時制）
 const wheelValues={period:['上午','下午'],hour:Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0')),minute:Array.from({length:60},(_,i)=>String(i).padStart(2,'0'))};
 const wheelState={period:0,hour:8,minute:0};
@@ -243,7 +283,7 @@ $('#saveEv').onclick=async()=>{
  try{
   await api({action:'add',type:'event',date,user:username,color:userColor,title,time:$('#evTime').value,note:$('#evNote').value.trim()});
   selected=date;view=new Date(Number(date.slice(0,4)),Number(date.slice(5,7))-1,1);
-  $('#modal').classList.add('hidden');await sync();toast('行程已儲存');
+  $('#modal').classList.add('hidden');pendingLocal++;try{await sync()}finally{pendingLocal--}showNotice('🌿 已新增行程',title+'｜'+date+' '+$('#evTime').value);
  }catch(e){
   err.textContent='儲存失敗：'+e.message+'。如仍顯示日期格式錯誤，請確認後端已部署最新版本。';
   err.style.display='block';
