@@ -38,6 +38,11 @@
 .wheel-colon{font-size:31px;font-weight:800;color:var(--sage);padding-top:20px}
 .wheel-preview{text-align:center;color:#617568;font-size:18px;font-weight:700;margin-top:9px}
 @media(max-width:380px){.wheel-row{gap:4px}.wheel-option{font-size:23px}.wheel-option.active{font-size:27px}.luggage-time{padding:9px 6px}}
+
+/* 登入字卡在不同手機寬度下維持水平置中 */
+#login{box-sizing:border-box;width:100%;max-width:100vw;margin:0;justify-items:center;align-items:center;padding-left:16px;padding-right:16px}
+#login .login{box-sizing:border-box;width:100%;max-width:430px;margin-left:auto;margin-right:auto;justify-self:center;transform:none}
+@media(max-width:480px){#login{padding-left:16px;padding-right:16px}#login .login{max-width:100%}}
 </style>
 </head><body>
 <section id="login"><div class="login"><div class="logo">🌿</div><h1>日常樹</h1><p>多人共用行程・大家都能新增與刪除</p><input id="name" placeholder="你的名稱（例如：David）" maxlength="20"><div class="color-pick"><span>我的代表色</span><input id="userColor" type="color" value="#87988a"><small>行程使用此顏色</small></div><input id="pass" type="password" inputmode="numeric" maxlength="4" placeholder="登入密碼"><button id="loginBtn" class="primary">進入共用行事曆</button><div id="err" class="err"></div></div></section>
