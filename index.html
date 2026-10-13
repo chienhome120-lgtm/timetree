@@ -51,6 +51,7 @@ let requestNo=0;
 function api(payload,method='POST'){
  if(!configured())return Promise.reject(new Error('尚未設定共用雲端網址'));
  const params=new URLSearchParams(payload||{action:'list'});
+ if(payload && payload.date) params.set('date', String(payload.date).replace(/\//g,'-'));
  if(method==='GET')params.set('action','list');
  const cb='dailyTreeCB_'+(++requestNo)+'_'+Date.now();
  params.set('callback',cb);
@@ -75,17 +76,20 @@ async function sync(){
  try{toast('同步中…');let j=await api(null,'GET');items=j.items||[];render();toast('已同步')}
  catch(e){render();toast(e.message)}
 }
-// 名稱永久記憶於目前裝置；密碼不記憶
+// 在此裝置記憶登入資料；共用裝置請勿啟用自動登入
 const savedUserName = localStorage.getItem('dailyTreeUserName') || '';
 if(savedUserName) $('#name').value = savedUserName;
 const savedUserColor=localStorage.getItem('dailyTreeUserColor')||'#87988a';
 $('#userColor').value=savedUserColor;
+const savedPass=localStorage.getItem('dailyTreeSavedPassword')||'';
+if(savedPass) $('#pass').value=savedPass;
 
 $('#loginBtn').onclick=()=>{
  let n=$('#name').value.trim();
  if(!n){$('#err').textContent='請先輸入你的名稱';return}
  if($('#pass').value!==PASSWORD){$('#err').textContent='密碼不正確';return}
  localStorage.setItem('dailyTreeUserName', n);
+ localStorage.setItem('dailyTreeSavedPassword', $('#pass').value);
  userColor=$('#userColor').value||'#87988a';
  localStorage.setItem('dailyTreeUserColor',userColor);
  username=n;
@@ -143,7 +147,7 @@ $('#saveEv').onclick=async()=>{
   selected=date;view=new Date(Number(date.slice(0,4)),Number(date.slice(5,7))-1,1);
   $('#modal').classList.add('hidden');await sync();toast('行程已儲存');
  }catch(e){
-  err.textContent='儲存失敗：'+e.message+'。請檢查 Apps Script 部署權限及後端版本。';
+  err.textContent='儲存失敗：'+e.message+'。如仍顯示日期格式錯誤，請確認後端已部署最新版本。';
   err.style.display='block';
  }finally{btn.disabled=false;btn.textContent='儲存'}
 };
@@ -151,4 +155,6 @@ $('#prev').onclick=()=>{view.setMonth(view.getMonth()-1);render()};$('#next').on
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#'+b.dataset.p).classList.add('on')});
 setInterval(()=>{if(username&&configured())sync()},30000);
 render();
+// 已登入過的個人裝置，重開時自動進入；清除網站資料即可重新輸入。
+if(savedPass===PASSWORD && savedUserName){$('#loginBtn').click()}
 </script></body></html>
